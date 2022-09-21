@@ -6,7 +6,7 @@ namespace WebService.Models
     public class Payload
     {
         [Key]
-        public Guid Id { get; private set; } = Guid.NewGuid();
+        public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required]
         public long TS {get; set; }
@@ -26,7 +26,7 @@ namespace WebService.Models
     public class Message
     {
         [Key]
-        public Guid Id { get; private set; } = Guid.NewGuid();
+        public Guid Id { get; set; } = Guid.NewGuid();
         [Required]
         public string Foo { get; set; }
         public string Baz { get; set; }
