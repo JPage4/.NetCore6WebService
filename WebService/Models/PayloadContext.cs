@@ -11,5 +11,7 @@ namespace WebService.Models
         }
 
         public DbSet<Payload> Payloads { get; set; } = null!;
+
+        public DbSet<Message> Message { get; set; } = null!;
     }
 }

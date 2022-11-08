@@ -92,7 +92,7 @@ namespace WebService.Controllers
             _context.Payloads.Add(payload);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetPayload", new { id = payload.Id }, payload);
+            return CreatedAtAction(nameof(GetPayload), new { id = payload.Id }, payload);
         }
 
         // DELETE: api/Payloads/5

@@ -8,8 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 
-builder.Services.AddDbContext<PayloadContext>(opt =>
-    opt.UseSqlServer(Configuration.GetConnectionString("WebApiDatabase")));
+builder.Services.AddDbContext<PayloadContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("PayloadContext")));
+//opt.UseInMemoryDatabase("WebApiDatabase"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
