@@ -1,10 +1,18 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Net;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Schema;
 using WebService.Models;
 
 namespace WebService.Controllers
@@ -54,6 +62,12 @@ namespace WebService.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutPayload(Guid id, Payload payload)
         {
+            bool isValid = ValidatePayload(payload);
+            if (!isValid) 
+            {
+                return BadRequest();
+            }
+
             if (id != payload.Id)
             {
                 return BadRequest();
@@ -85,10 +99,17 @@ namespace WebService.Controllers
         [HttpPost]
         public async Task<ActionResult<Payload>> PostPayload(Payload payload)
         {
-          if (_context.Payloads == null)
-          {
-              return Problem("Entity set 'PayloadContext.Payloads'  is null.");
-          }
+            bool isValid = ValidatePayload(payload);
+            if (!isValid)
+            {
+                return BadRequest();
+            }
+
+            if (_context.Payloads == null)
+            {
+                return Problem("Entity set 'PayloadContext.Payloads'  is null.");
+            }
+
             _context.Payloads.Add(payload);
             await _context.SaveChangesAsync();
 
@@ -118,6 +139,77 @@ namespace WebService.Controllers
         private bool PayloadExists(Guid id)
         {
             return (_context.Payloads?.Any(e => e.Id == id)).GetValueOrDefault();
+        }
+
+        private bool ValidateTimeStamp(Payload payload)
+        {
+            long minRange = 0;
+            DateTime now = DateTime.Now;
+            long maxRange = ((DateTimeOffset)now).ToUnixTimeSeconds();
+            bool isValid = false;
+
+            if(payload.TS > minRange && payload.TS <= maxRange)
+            {
+                isValid = true;
+            }
+            return isValid;
+        }
+
+        private bool ValidateSender(Payload payload)
+        {
+            bool isValid = false;
+            if (payload.Sender != null)
+            {
+                if(payload.Sender.GetType() == typeof(string))
+                {
+                    isValid= true;
+                }
+                return isValid;
+            }
+
+            return false;
+        }
+
+        private bool ValidateMessage(Payload payload)
+        {
+            bool isValid = false;
+            if (payload.Message!= null) 
+            { //IF MESSAGE IS A VALID JSON OBJECT??? IDK json schema isn't working... come back to this
+                if (payload.Message.Foo!= null || payload.Message.Baz != null) 
+                { 
+                    isValid = true;
+                }
+            }
+            return isValid;
+        }
+
+        private bool ValidateIPAddress(Payload payload) 
+        {
+            bool isValid = false;
+            if (payload.SentFromIp != null)
+            {
+                if (IPAddress.TryParse(payload.SentFromIp, out System.Net.IPAddress? address))
+                {
+                    isValid= true;
+                }
+            }
+            return isValid;
+        }
+
+        private bool ValidatePayload(Payload payload)
+        {
+            bool isValidTimeStamp = ValidateTimeStamp(payload);
+            bool isValidSender = ValidateSender(payload);
+            bool isValidMessage = ValidateMessage(payload);
+            bool isValidIPAddress = ValidateIPAddress(payload);
+            bool isValidPayload = false;
+
+            if (isValidTimeStamp && isValidSender && isValidMessage && isValidIPAddress)
+            {
+                isValidPayload = true;
+            }
+
+            return isValidPayload;
         }
     }
 }

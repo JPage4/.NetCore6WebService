@@ -10,7 +10,7 @@ builder.Services.AddControllers();
 
 builder.Services.AddDbContext<PayloadContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("PayloadContext")));
-//opt.UseInMemoryDatabase("WebApiDatabase"));
+//opt.UseInMemoryDatabase("PayloadContext"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
