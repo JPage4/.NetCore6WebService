@@ -1,16 +1,15 @@
-using Microsoft.EntityFrameworkCore;
-using System.Configuration;
-using WebService.Models;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.ReturnHttpNotAcceptable = true;
+}).AddXmlDataContractSerializerFormatters();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 
-builder.Services.AddDbContext<PayloadContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("PayloadContext")));
-//opt.UseInMemoryDatabase("PayloadContext"));
+//builder.Services.AddDbContext<PayloadContext>(options =>
+//    //options.UseSqlServer(builder.Configuration.GetConnectionString("PayloadContext")));
+//    options.UseInMemoryDatabase("PayloadContext"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -27,8 +26,13 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseRouting();
+
 app.UseAuthorization();
 
-app.MapControllers();
+app.UseEndpoints(endpoints =>
+{
+    endpoints.MapControllers();
+});
 
 app.Run();

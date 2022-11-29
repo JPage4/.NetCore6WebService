@@ -1,12 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
+using WebService.Entities;
 
-namespace WebService.Models
+namespace WebService.DbContexts
 {
     public class PayloadContext : DbContext
     {
         public PayloadContext(DbContextOptions<PayloadContext> options)
-            : base(options) 
+            : base(options)
         {
         }
 

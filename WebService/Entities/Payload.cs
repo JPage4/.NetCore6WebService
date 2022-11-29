@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
-namespace WebService.Models
+namespace WebService.Entities
 {
     public class Payload
     {
