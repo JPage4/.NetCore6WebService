@@ -15,11 +15,18 @@ namespace WebService.Controllers
         {
             var payload = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
-            if (payload == null || payload.Message == null)
+            if (payload == null)
             {
                 return NotFound();
             }
-            return Ok(payload.Message);
+
+            var message = payload.Message;
+            if(message == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(message);
         }
     }
 }

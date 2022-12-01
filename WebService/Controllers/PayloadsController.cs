@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using WebService.Entities;
 using WebService.Models;
 
 namespace WebService.Controllers
@@ -13,16 +14,37 @@ namespace WebService.Controllers
             return Ok(PayloadDataStore.Current.PayloadDTOs);
         }
 
-        [HttpGet("{id}")]
-        public ActionResult<PayloadDTO> GetPayload(Guid id)
+        [HttpGet("{payloadId}")]
+        [ActionName(nameof(GetPayload))]
+        public async Task<ActionResult<Payload>> GetPayload(Guid payloadId)
         {
-            var payloadToReturn = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == id);
+            var payloadToReturn = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
             if (payloadToReturn == null) 
             {
                 return NotFound();
             }
             return Ok(payloadToReturn);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<PayloadDTO>> CreatePayload([FromBody] PayloadForCreationDTO payload)
+        {
+            var newPayloadId = Guid.NewGuid();
+            var newPayload = new PayloadForCreationDTO
+            {
+                TS = payload.TS,
+                Sender = payload.Sender,
+                Message = payload.Message,
+                SentFromIp = payload.SentFromIp,
+                Priority = payload.Priority,
+            };
+
+            return CreatedAtRoute(nameof(GetPayload), 
+                new 
+                {
+                    payloadId = newPayloadId,
+                }, newPayload);
         }
     }
 }
