@@ -1,6 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using System.Net;
 using WebService.Entities;
 using WebService.Models;
+using NuGet.Protocol;
+using Microsoft.AspNetCore.JsonPatch;
 
 namespace WebService.Controllers
 {
@@ -14,24 +19,24 @@ namespace WebService.Controllers
             return Ok(PayloadDataStore.Current.PayloadDTOs);
         }
 
-        [HttpGet("{payloadId}")]
-        [ActionName(nameof(GetPayload))]
-        public async Task<ActionResult<Payload>> GetPayload(Guid payloadId)
+        [HttpGet("{payloadId}", Name = "GetPayload")]
+        public ActionResult<Payload> GetPayload(Guid payloadId)
         {
-            var payloadToReturn = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
-
-            if (payloadToReturn == null) 
+            if (!PayloadExists(payloadId)) 
             {
                 return NotFound();
             }
+
+            var payloadToReturn = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+
             return Ok(payloadToReturn);
         }
 
         [HttpPost]
-        public async Task<ActionResult<PayloadDTO>> CreatePayload([FromBody] PayloadForCreationDTO payload)
+        public ActionResult<PayloadDTO> CreatePayload(PayloadForCreationDTO payload)
         {
             var newPayloadId = Guid.NewGuid();
-            var newPayload = new PayloadForCreationDTO
+            var newPayload = new PayloadDTO
             {
                 TS = payload.TS,
                 Sender = payload.Sender,
@@ -40,11 +45,173 @@ namespace WebService.Controllers
                 Priority = payload.Priority,
             };
 
-            return CreatedAtRoute(nameof(GetPayload), 
+            var result = ValidatePayload(newPayload);
+
+            if (result.Result != null)
+            {
+                if(result.Result.GetType() != typeof(OkObjectResult))
+                {
+                    return BadRequest();
+                }
+            }
+            
+
+            string GetPayloadName = "GetPayload";
+            return CreatedAtRoute(GetPayloadName, 
                 new 
                 {
                     payloadId = newPayloadId,
                 }, newPayload);
+        }
+
+        [HttpPut("{payloadId}")]
+        public ActionResult<PayloadDTO> UpdatePayload(Guid payloadId, PayloadForUpdateDTO updatedPayload)
+        {
+            if (!PayloadExists(payloadId))
+            {
+                return NotFound();
+            }
+            var payloadToUpdate = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+
+
+            payloadToUpdate.TS = updatedPayload.TS;
+            payloadToUpdate.Sender = updatedPayload.Sender;
+            payloadToUpdate.Message = updatedPayload.Message;
+            payloadToUpdate.SentFromIp = updatedPayload.SentFromIp;
+            payloadToUpdate.Priority = updatedPayload.Priority;
+
+            return NoContent();
+        }
+
+        [HttpPatch("{payloadId}")]
+        public ActionResult<PayloadDTO> EditPayload(Guid payloadId, JsonPatchDocument<PayloadForUpdateDTO> patchPayload)
+        {
+            if (!PayloadExists(payloadId))
+            {
+                return NotFound();
+            }
+            var payloadToEdit = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+
+
+            var newPatchedPayload =
+                new PayloadForUpdateDTO()
+                {
+                    TS = payloadToEdit.TS,
+                    Sender = payloadToEdit.Sender,
+                    Message = payloadToEdit.Message,
+                    SentFromIp = payloadToEdit.SentFromIp,
+                    Priority = payloadToEdit.Priority,
+                };
+            patchPayload.ApplyTo(newPatchedPayload, ModelState);
+
+            if(!ModelState.IsValid) 
+            { 
+                return BadRequest(ModelState);
+            }
+
+            payloadToEdit.TS = newPatchedPayload.TS;
+            payloadToEdit.Sender = payloadToEdit.Sender;
+            payloadToEdit.Message = payloadToEdit.Message;
+            payloadToEdit.SentFromIp = payloadToEdit.SentFromIp;
+            payloadToEdit.Priority = payloadToEdit.Priority;
+            
+            return NoContent();
+        }
+        [HttpDelete("{payloadId}")]
+        public ActionResult DeletePayload(Guid payloadId)
+        {
+            if (!PayloadExists(payloadId))
+            {
+                return NotFound();
+            }
+            var payloadToDelete = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+
+
+            PayloadDataStore.Current.PayloadDTOs.Add(payloadToDelete);
+            return NoContent();
+        }
+
+
+        //VALIDATION
+        private bool PayloadExists(Guid payloadId)
+        {
+            var payloadToReturn = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+
+            return payloadToReturn == null ? false : true;
+        }
+
+        private ActionResult<PayloadDTO> ValidatePayload(PayloadDTO payload)
+        {
+        //Timestamp
+            long minRange = 0;
+            DateTime now = DateTime.Now;
+            long maxRange = ((DateTimeOffset)now).ToUnixTimeSeconds();
+
+            if (payload.TS != 0 && (payload.TS < minRange || payload.TS >= maxRange)) 
+            {
+                return BadRequest(payload.TS);
+            }
+
+        //Sender
+            if (payload.Sender != null)
+            {
+                if (payload.Sender.GetType() != typeof(string)) 
+                {
+                    return BadRequest(payload.Sender);
+                }
+            }
+
+        //Message
+            if (payload.Message != null)
+            {
+                string jsonPayload = payload.Message.ToJson();
+                if(IsValidJson(jsonPayload))
+                {
+                    if (payload.Message.Foo == null || payload.Message.Baz == null)
+                    {
+                        return BadRequest(payload.Message);
+                    }
+                }
+            }
+
+        //IP Address
+            if (payload.SentFromIp != null)
+            {
+                if (!IPAddress.TryParse(payload.SentFromIp, out System.Net.IPAddress? address))
+                {
+                    return BadRequest(payload.SentFromIp);
+                }
+            }
+            return Ok(payload);
+        }
+
+        private static bool IsValidJson(string strInput)
+        {
+            if (string.IsNullOrWhiteSpace(strInput)) { return false; }
+            strInput = strInput.Trim();
+            if ((strInput.StartsWith("{") && strInput.EndsWith("}")))
+            {
+                try
+                {
+                    var obj = JToken.Parse(strInput);
+                    return true;
+                }
+                catch (JsonReaderException jex)
+                {
+                    //Exception in parsing json
+                    Console.WriteLine(jex.Message);
+                    return false;
+                }
+                catch (Exception ex) //some other exception
+                {
+                    Console.WriteLine(ex.ToString());
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }
@@ -163,33 +330,29 @@ namespace WebService.Controllers
         //    return NoContent();
         //}
 
-        //private bool PayloadExists(Guid id)
-        //{
-        //    return (_context.Payloads?.Any(e => e.Id == id)).GetValueOrDefault();
-        //}
-
-        //private bool ValidateTimeStamp(Payload payload)
+        
+        //private bool ValidateTimeStamp(PayloadDTO payload)
         //{
         //    long minRange = 0;
         //    DateTime now = DateTime.Now;
         //    long maxRange = ((DateTimeOffset)now).ToUnixTimeSeconds();
         //    bool isValid = false;
 
-        //    if(payload.TS > minRange && payload.TS <= maxRange)
+        //    if (payload.TS > minRange && payload.TS <= maxRange)
         //    {
         //        isValid = true;
         //    }
         //    return isValid;
         //}
 
-        //private bool ValidateSender(Payload payload)
+        //private bool ValidateSender(PayloadDTO payload)
         //{
         //    bool isValid = false;
         //    if (payload.Sender != null)
         //    {
-        //        if(payload.Sender.GetType() == typeof(string))
+        //        if (payload.Sender.GetType() == typeof(string))
         //        {
-        //            isValid= true;
+        //            isValid = true;
         //        }
         //        return isValid;
         //    }
@@ -197,44 +360,28 @@ namespace WebService.Controllers
         //    return false;
         //}
 
-        //private bool ValidateMessage(Payload payload)
+        //private bool ValidateMessage(PayloadDTO payload)
         //{
         //    bool isValid = false;
-        //    if (payload.Message!= null) 
+        //    if (payload.Message != null)
         //    { //IF MESSAGE IS A VALID JSON OBJECT??? IDK json schema isn't working... come back to this
-        //        if (payload.Message.Foo!= null || payload.Message.Baz != null) 
-        //        { 
+        //        if (payload.Message.Foo != null || payload.Message.Baz != null)
+        //        {
         //            isValid = true;
         //        }
         //    }
         //    return isValid;
         //}
 
-        //private bool ValidateIPAddress(Payload payload) 
+        //private bool ValidateIPAddress(PayloadDTO payload)
         //{
         //    bool isValid = false;
         //    if (payload.SentFromIp != null)
         //    {
         //        if (IPAddress.TryParse(payload.SentFromIp, out System.Net.IPAddress? address))
         //        {
-        //            isValid= true;
+        //            isValid = true;
         //        }
         //    }
         //    return isValid;
-        //}
-
-        //private bool ValidatePayload(Payload payload)
-        //{
-        //    bool isValidTimeStamp = ValidateTimeStamp(payload);
-        //    bool isValidSender = ValidateSender(payload);
-        //    bool isValidMessage = ValidateMessage(payload);
-        //    bool isValidIPAddress = ValidateIPAddress(payload);
-        //    bool isValidPayload = false;
-
-        //    if (isValidTimeStamp && isValidSender && isValidMessage && isValidIPAddress)
-        //    {
-        //        isValidPayload = true;
-        //    }
-
-        //    return isValidPayload;
         //}

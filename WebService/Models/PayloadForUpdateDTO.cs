@@ -1,21 +1,17 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
-using WebService.Entities;
 
 namespace WebService.Models
 {
-    public class PayloadDTO
+    public class PayloadForUpdateDTO
     {
-        public Guid Id { get; set; } = Guid.NewGuid();
-
-        [Required]
-        [DataType(DataType.DateTime)]
+        [Required(ErrorMessage = "TimeStamp property is required")]
         public long TS { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Sender property is required")]
         public string Sender { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Message property is required")]
         public MessageDTO Message { get; set; }
 
         [JsonPropertyName("sent-from-ip")]
