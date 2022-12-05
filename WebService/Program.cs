@@ -1,4 +1,18 @@
+using Microsoft.AspNetCore.StaticFiles;
+using Serilog;
+using WebService;
+using WebService.Services;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Console()
+    .WriteTo.File("logs/payloadinfo.txt", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog();
 
 // Add services to the container.
 builder.Services.AddControllers(options =>
@@ -14,6 +28,15 @@ builder.Services.AddControllers(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+#if DEBUG
+builder.Services.AddTransient<IMailService, LocalMailService>();
+
+#else
+builder.Services.AddTransient<IMailService, CloudMailService>();
+#endif
+
+builder.Services.AddSingleton<PayloadDataStore>();
 
 var app = builder.Build();
 

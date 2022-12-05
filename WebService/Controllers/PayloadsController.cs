@@ -6,6 +6,7 @@ using WebService.Entities;
 using WebService.Models;
 using NuGet.Protocol;
 using Microsoft.AspNetCore.JsonPatch;
+using WebService.Services;
 
 namespace WebService.Controllers
 {
@@ -13,23 +14,42 @@ namespace WebService.Controllers
     [ApiController]
     public class PayloadsController : ControllerBase
     {
+        private readonly ILogger<PayloadsController> _logger;
+        private readonly IMailService _mailService;
+        private readonly PayloadDataStore _payloadDataStore;
+        public PayloadsController(ILogger<PayloadsController> logger, IMailService mailService, PayloadDataStore payloadDataStore)
+        {
+            _logger = logger ?? throw new ArgumentException(nameof(logger));
+            _mailService = mailService ?? throw new ArgumentException(nameof(mailService));
+            _payloadDataStore = payloadDataStore ?? throw new ArgumentException(nameof(payloadDataStore));
+        }
+
         [HttpGet]
         public ActionResult<IEnumerable<PayloadDTO>> GetPayloads()
         {
-            return Ok(PayloadDataStore.Current.PayloadDTOs);
+            return Ok(_payloadDataStore.PayloadDTOs);
         }
 
         [HttpGet("{payloadId}", Name = "GetPayload")]
         public ActionResult<Payload> GetPayload(Guid payloadId)
         {
-            if (!PayloadExists(payloadId)) 
+            try
             {
-                return NotFound();
+                if (!PayloadExists(payloadId))
+                {
+                    _logger.LogInformation($"Payload with Id {payloadId} wasn't found");
+                    return NotFound();
+                }
+
+                var payloadToReturn = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+
+                return Ok(payloadToReturn);
             }
-
-            var payloadToReturn = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
-
-            return Ok(payloadToReturn);
+            catch (Exception ex)
+            {
+                _logger.LogCritical($"Exception while getting payload with id {payloadId}", ex);
+                return StatusCode(500, "A problem happened while handling request");
+            }
         }
 
         [HttpPost]
@@ -71,7 +91,7 @@ namespace WebService.Controllers
             {
                 return NotFound();
             }
-            var payloadToUpdate = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+            var payloadToUpdate = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
 
             payloadToUpdate.TS = updatedPayload.TS;
@@ -90,7 +110,7 @@ namespace WebService.Controllers
             {
                 return NotFound();
             }
-            var payloadToEdit = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+            var payloadToEdit = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
 
             var newPatchedPayload =
@@ -124,10 +144,10 @@ namespace WebService.Controllers
             {
                 return NotFound();
             }
-            var payloadToDelete = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+            var payloadToDelete = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
-
-            PayloadDataStore.Current.PayloadDTOs.Add(payloadToDelete);
+            _payloadDataStore.PayloadDTOs.Remove(payloadToDelete);
+            _mailService.Send("Payload deleted", $"Payload {payloadToDelete.Id} was deleted");
             return NoContent();
         }
 
@@ -135,7 +155,7 @@ namespace WebService.Controllers
         //VALIDATION
         private bool PayloadExists(Guid payloadId)
         {
-            var payloadToReturn = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+            var payloadToReturn = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
             return payloadToReturn == null ? false : true;
         }
@@ -328,60 +348,4 @@ namespace WebService.Controllers
         //    await _context.SaveChangesAsync();
 
         //    return NoContent();
-        //}
-
-        
-        //private bool ValidateTimeStamp(PayloadDTO payload)
-        //{
-        //    long minRange = 0;
-        //    DateTime now = DateTime.Now;
-        //    long maxRange = ((DateTimeOffset)now).ToUnixTimeSeconds();
-        //    bool isValid = false;
-
-        //    if (payload.TS > minRange && payload.TS <= maxRange)
-        //    {
-        //        isValid = true;
-        //    }
-        //    return isValid;
-        //}
-
-        //private bool ValidateSender(PayloadDTO payload)
-        //{
-        //    bool isValid = false;
-        //    if (payload.Sender != null)
-        //    {
-        //        if (payload.Sender.GetType() == typeof(string))
-        //        {
-        //            isValid = true;
-        //        }
-        //        return isValid;
-        //    }
-
-        //    return false;
-        //}
-
-        //private bool ValidateMessage(PayloadDTO payload)
-        //{
-        //    bool isValid = false;
-        //    if (payload.Message != null)
-        //    { //IF MESSAGE IS A VALID JSON OBJECT??? IDK json schema isn't working... come back to this
-        //        if (payload.Message.Foo != null || payload.Message.Baz != null)
-        //        {
-        //            isValid = true;
-        //        }
-        //    }
-        //    return isValid;
-        //}
-
-        //private bool ValidateIPAddress(PayloadDTO payload)
-        //{
-        //    bool isValid = false;
-        //    if (payload.SentFromIp != null)
-        //    {
-        //        if (IPAddress.TryParse(payload.SentFromIp, out System.Net.IPAddress? address))
-        //        {
-        //            isValid = true;
-        //        }
-        //    }
-        //    return isValid;
         //}

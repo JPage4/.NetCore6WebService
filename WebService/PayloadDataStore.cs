@@ -6,9 +6,7 @@ namespace WebService
     public class PayloadDataStore
     {
         public List<PayloadDTO> PayloadDTOs { get; set; }
-        public static PayloadDataStore Current { get; } = new PayloadDataStore();
 
-        //constructor
         public PayloadDataStore()
         {
             PayloadDTOs = new List<PayloadDTO>()

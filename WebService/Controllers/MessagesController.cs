@@ -10,10 +10,17 @@ namespace WebService.Controllers
     [ApiController]
     public class MessagesController : ControllerBase
     {
+        private readonly PayloadDataStore _payloadDataStore;
+
+        public MessagesController(PayloadDataStore payloadDataStore) 
+        {
+            _payloadDataStore = payloadDataStore ?? throw new ArgumentException(nameof(payloadDataStore));
+        }
+
         [HttpGet]
         public ActionResult<MessageDTO> GetMessage(Guid payloadId)
         {
-            var payload = PayloadDataStore.Current.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+            var payload = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
             if (payload == null)
             {
