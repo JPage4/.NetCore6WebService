@@ -7,6 +7,7 @@ using WebService.Models;
 using NuGet.Protocol;
 using Microsoft.AspNetCore.JsonPatch;
 using WebService.Services;
+using AutoMapper;
 
 namespace WebService.Controllers
 {
@@ -16,22 +17,30 @@ namespace WebService.Controllers
     {
         private readonly ILogger<PayloadsController> _logger;
         private readonly IMailService _mailService;
-        private readonly PayloadDataStore _payloadDataStore;
-        public PayloadsController(ILogger<PayloadsController> logger, IMailService mailService, PayloadDataStore payloadDataStore)
+        private readonly IPayloadInfoRepository _payloadInfoRepository;
+        private readonly IMapper _mapper;
+
+        public PayloadsController(ILogger<PayloadsController> logger, 
+            IMailService mailService, 
+            IPayloadInfoRepository payloadInfoRepository,
+            IMapper mapper)
         {
             _logger = logger ?? throw new ArgumentException(nameof(logger));
             _mailService = mailService ?? throw new ArgumentException(nameof(mailService));
-            _payloadDataStore = payloadDataStore ?? throw new ArgumentException(nameof(payloadDataStore));
+            _payloadInfoRepository = payloadInfoRepository ?? throw new ArgumentException(nameof(payloadInfoRepository));
+            _mapper = mapper ?? throw new ArgumentException(nameof(mapper));
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<PayloadDTO>> GetPayloads()
+        public async Task<ActionResult<IEnumerable<PayloadDTO>>> GetPayloadsAsync()
         {
-            return Ok(_payloadDataStore.PayloadDTOs);
+            var payloadEntities = await _payloadInfoRepository.GetPayloadsAsync();
+            
+            return Ok(_mapper.Map<IEnumerable<PayloadDTO>>(payloadEntities));
         }
 
         [HttpGet("{payloadId}", Name = "GetPayload")]
-        public ActionResult<Payload> GetPayload(Guid payloadId)
+        public async Task<IActionResult> GetPayloadAsync(Guid payloadId)
         {
             try
             {
@@ -41,9 +50,9 @@ namespace WebService.Controllers
                     return NotFound();
                 }
 
-                var payloadToReturn = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+                var payloadToReturn = await _payloadInfoRepository.GetPayloadAsync(payloadId);
 
-                return Ok(payloadToReturn);
+                return Ok(_mapper.Map<PayloadDTO>(payloadToReturn));
             }
             catch (Exception ex)
             {
@@ -53,121 +62,117 @@ namespace WebService.Controllers
         }
 
         [HttpPost]
-        public ActionResult<PayloadDTO> CreatePayload(PayloadForCreationDTO payload)
+        public async Task<ActionResult<PayloadDTO>> CreatePayload(PayloadForCreationDTO payload)
         {
-            var newPayloadId = Guid.NewGuid();
-            var newPayload = new PayloadDTO
-            {
-                TS = payload.TS,
-                Sender = payload.Sender,
-                Message = payload.Message,
-                SentFromIp = payload.SentFromIp,
-                Priority = payload.Priority,
-            };
+            var newPayload = _mapper.Map<Entities.Payload>(payload);
 
             var result = ValidatePayload(newPayload);
 
             if (result.Result != null)
             {
-                if(result.Result.GetType() != typeof(OkObjectResult))
+                if (result.Result.GetType() != typeof(OkObjectResult))
                 {
                     return BadRequest();
                 }
             }
-            
+            _payloadInfoRepository.AddPayloadAsync(newPayload);
+
+            await _payloadInfoRepository.SaveChangesAsync();
+
+            var createdPayloadToReturn = _mapper.Map<PayloadDTO>(newPayload);
 
             string GetPayloadName = "GetPayload";
-            return CreatedAtRoute(GetPayloadName, 
-                new 
+            return CreatedAtRoute(GetPayloadName,
+                new
                 {
-                    payloadId = newPayloadId,
-                }, newPayload);
+                    payloadId = createdPayloadToReturn.Id,
+                }, createdPayloadToReturn);
         }
 
-        [HttpPut("{payloadId}")]
-        public ActionResult<PayloadDTO> UpdatePayload(Guid payloadId, PayloadForUpdateDTO updatedPayload)
-        {
-            if (!PayloadExists(payloadId))
-            {
-                return NotFound();
-            }
-            var payloadToUpdate = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+        //[HttpPut("{payloadId}")]
+        //public ActionResult<PayloadDTO> UpdatePayload(Guid payloadId, PayloadForUpdateDTO updatedPayload)
+        //{
+        //    if (!PayloadExists(payloadId))
+        //    {
+        //        return NotFound();
+        //    }
+        //    var payloadToUpdate = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
 
-            payloadToUpdate.TS = updatedPayload.TS;
-            payloadToUpdate.Sender = updatedPayload.Sender;
-            payloadToUpdate.Message = updatedPayload.Message;
-            payloadToUpdate.SentFromIp = updatedPayload.SentFromIp;
-            payloadToUpdate.Priority = updatedPayload.Priority;
+        //    payloadToUpdate.TS = updatedPayload.TS;
+        //    payloadToUpdate.Sender = updatedPayload.Sender;
+        //    payloadToUpdate.Message = updatedPayload.Message;
+        //    payloadToUpdate.SentFromIp = updatedPayload.SentFromIp;
+        //    payloadToUpdate.Priority = updatedPayload.Priority;
 
-            return NoContent();
-        }
+        //    return NoContent();
+        //}
 
-        [HttpPatch("{payloadId}")]
-        public ActionResult<PayloadDTO> EditPayload(Guid payloadId, JsonPatchDocument<PayloadForUpdateDTO> patchPayload)
-        {
-            if (!PayloadExists(payloadId))
-            {
-                return NotFound();
-            }
-            var payloadToEdit = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
-
-
-            var newPatchedPayload =
-                new PayloadForUpdateDTO()
-                {
-                    TS = payloadToEdit.TS,
-                    Sender = payloadToEdit.Sender,
-                    Message = payloadToEdit.Message,
-                    SentFromIp = payloadToEdit.SentFromIp,
-                    Priority = payloadToEdit.Priority,
-                };
-            patchPayload.ApplyTo(newPatchedPayload, ModelState);
-
-            if(!ModelState.IsValid) 
-            { 
-                return BadRequest(ModelState);
-            }
-
-            payloadToEdit.TS = newPatchedPayload.TS;
-            payloadToEdit.Sender = payloadToEdit.Sender;
-            payloadToEdit.Message = payloadToEdit.Message;
-            payloadToEdit.SentFromIp = payloadToEdit.SentFromIp;
-            payloadToEdit.Priority = payloadToEdit.Priority;
-            
-            return NoContent();
-        }
-        [HttpDelete("{payloadId}")]
-        public ActionResult DeletePayload(Guid payloadId)
-        {
-            if (!PayloadExists(payloadId))
-            {
-                return NotFound();
-            }
-            var payloadToDelete = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
-
-            _payloadDataStore.PayloadDTOs.Remove(payloadToDelete);
-            _mailService.Send("Payload deleted", $"Payload {payloadToDelete.Id} was deleted");
-            return NoContent();
-        }
+        //[HttpPatch("{payloadId}")]
+        //public ActionResult<PayloadDTO> EditPayload(Guid payloadId, JsonPatchDocument<PayloadForUpdateDTO> patchPayload)
+        //{
+        //    if (!PayloadExists(payloadId))
+        //    {
+        //        return NotFound();
+        //    }
+        //    var payloadToEdit = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
 
 
-        //VALIDATION
+        //    var newPatchedPayload =
+        //        new PayloadForUpdateDTO()
+        //        {
+        //            TS = payloadToEdit.TS,
+        //            Sender = payloadToEdit.Sender,
+        //            Message = payloadToEdit.Message,
+        //            SentFromIp = payloadToEdit.SentFromIp,
+        //            Priority = payloadToEdit.Priority,
+        //        };
+        //    patchPayload.ApplyTo(newPatchedPayload, ModelState);
+
+        //    if(!ModelState.IsValid) 
+        //    { 
+        //        return BadRequest(ModelState);
+        //    }
+
+        //    payloadToEdit.TS = newPatchedPayload.TS;
+        //    payloadToEdit.Sender = payloadToEdit.Sender;
+        //    payloadToEdit.Message = payloadToEdit.Message;
+        //    payloadToEdit.SentFromIp = payloadToEdit.SentFromIp;
+        //    payloadToEdit.Priority = payloadToEdit.Priority;
+
+        //    return NoContent();
+        //}
+        //[HttpDelete("{payloadId}")]
+        //public ActionResult DeletePayload(Guid payloadId)
+        //{
+        //    if (!PayloadExists(payloadId))
+        //    {
+        //        return NotFound();
+        //    }
+        //    var payloadToDelete = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+
+        //    _payloadDataStore.PayloadDTOs.Remove(payloadToDelete);
+        //    _mailService.Send("Payload deleted", $"Payload {payloadToDelete.Id} was deleted");
+        //    return NoContent();
+        //}
+
+
+#region VALIDATION
         private bool PayloadExists(Guid payloadId)
         {
-            var payloadToReturn = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+            var payloadToReturn = _payloadInfoRepository.GetPayloadAsync(payloadId);
 
             return payloadToReturn == null ? false : true;
         }
 
-        private ActionResult<PayloadDTO> ValidatePayload(PayloadDTO payload)
+        private ActionResult<Payload> ValidatePayload(Payload payload)
         {
         //Timestamp
             long minRange = 0;
             DateTime now = DateTime.Now;
             long maxRange = ((DateTimeOffset)now).ToUnixTimeSeconds();
 
-            if (payload.TS != 0 && (payload.TS < minRange || payload.TS >= maxRange)) 
+            if (payload.TS != 0 && (payload.TS < minRange || payload.TS >= maxRange))
             {
                 return BadRequest(payload.TS);
             }
@@ -175,7 +180,7 @@ namespace WebService.Controllers
         //Sender
             if (payload.Sender != null)
             {
-                if (payload.Sender.GetType() != typeof(string)) 
+                if (payload.Sender.GetType() != typeof(string))
                 {
                     return BadRequest(payload.Sender);
                 }
@@ -185,7 +190,7 @@ namespace WebService.Controllers
             if (payload.Message != null)
             {
                 string jsonPayload = payload.Message.ToJson();
-                if(IsValidJson(jsonPayload))
+                if (IsValidJson(jsonPayload))
                 {
                     if (payload.Message.Foo == null || payload.Message.Baz == null)
                     {
@@ -233,6 +238,7 @@ namespace WebService.Controllers
                 return false;
             }
         }
+#endregion
     }
 }
         //private readonly PayloadContext _context;

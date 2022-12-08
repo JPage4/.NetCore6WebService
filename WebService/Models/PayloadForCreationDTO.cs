@@ -13,7 +13,8 @@ namespace WebService.Models
         public string Sender { get; set; }
 
         [Required(ErrorMessage = "Message property is required")]
-        public MessageDTO Message { get; set; }
+        public Message Message { get; set; }
+        public Guid MessageId{ get => Message.Id; set => Message.Id = value; }
 
         [JsonPropertyName("sent-from-ip")]
         public string? SentFromIp { get; set; }

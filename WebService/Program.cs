@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using WebService;
+using WebService.DbContexts;
 using WebService.Services;
 
 Log.Logger = new LoggerConfiguration()
@@ -22,10 +24,6 @@ builder.Services.AddControllers(options =>
     .AddXmlDataContractSerializerFormatters();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 
-//builder.Services.AddDbContext<PayloadContext>(options =>
-//    //options.UseSqlServer(builder.Configuration.GetConnectionString("PayloadContext")));
-//    options.UseInMemoryDatabase("PayloadContext"));
-
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -37,6 +35,13 @@ builder.Services.AddTransient<IMailService, CloudMailService>();
 #endif
 
 builder.Services.AddSingleton<PayloadDataStore>();
+
+builder.Services.AddDbContext<PayloadContext>(dbContextOptions =>
+    dbContextOptions.UseSqlite(builder.Configuration["ConnectionStrings:PayloadsInfoDBConnectionString"]));
+
+builder.Services.AddScoped<IPayloadInfoRepository, PayloadInfoRepository>();
+
+builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
 var app = builder.Build();
 
