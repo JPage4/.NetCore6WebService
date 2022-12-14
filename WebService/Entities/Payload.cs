@@ -7,6 +7,8 @@ namespace WebService.Entities
     public class Payload
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        [Required]
         public Guid Id { get; set; } = new Guid();
 
         [Required]
@@ -15,13 +17,13 @@ namespace WebService.Entities
         [Required]
         public string Sender { get; set; }
 
-
         [Required]
-        public Message Message { get; set; } = new Message();
+        public Guid MessageId { get; set; }
 
         [Required]
         [ForeignKey("MessageId")]
-        public Guid MessageId { get => Message.Id; set => Message.Id = value; }
+        public Message Message { get; set; }
+
 
         [JsonPropertyName("sent-from-ip")]
         public string? SentFromIp { get; set; }
