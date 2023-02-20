@@ -38,7 +38,12 @@ namespace WebService.Services
         {
             _context.Payloads.Add(payload);
         }
-        
+
+        public void DeletePayloadAsync(Payload payload)
+        {
+            _context.Payloads.Remove(payload);
+        }
+
         public async Task<bool> SaveChangesAsync()
         {
             return (await _context.SaveChangesAsync() >= 0); //return true when 0 or more entities has been saved

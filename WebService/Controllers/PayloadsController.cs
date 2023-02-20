@@ -64,7 +64,7 @@ namespace WebService.Controllers
         [HttpPost]
         public async Task<ActionResult<PayloadDTO>> CreatePayload(PayloadForCreationDTO payload)
         {
-            var newPayload = _mapper.Map<Entities.Payload>(payload);
+            var newPayload = _mapper.Map<Payload>(payload);
 
             var result = ValidatePayload(newPayload);
 
@@ -89,75 +89,77 @@ namespace WebService.Controllers
                 }, createdPayloadToReturn);
         }
 
-        //[HttpPut("{payloadId}")]
-        //public ActionResult<PayloadDTO> UpdatePayload(Guid payloadId, PayloadForUpdateDTO updatedPayload)
-        //{
-        //    if (!PayloadExists(payloadId))
-        //    {
-        //        return NotFound();
-        //    }
-        //    var payloadToUpdate = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
+        [HttpPut("{payloadId}")]
+        public async Task<ActionResult<PayloadDTO>> UpdatePayload(Guid payloadId, PayloadForUpdateDTO updatedPayload)
+        {
+            if (!PayloadExists(payloadId))
+            {
+                return NotFound();
+            }
+            var payloadToUpdateEntity = _payloadInfoRepository.GetPayloadAsync(payloadId);
+
+            await _payloadInfoRepository.SaveChangesAsync();
+
+            await _mapper.Map(updatedPayload, payloadToUpdateEntity);
+
+            return NoContent();
+        }
+
+        [HttpPatch("{payloadId}")]
+        public async Task<ActionResult<PayloadDTO>> PartiallyUpdatePayload(Guid payloadId, JsonPatchDocument<PayloadForUpdateDTO> patchPayload)
+        {
+            if (!PayloadExists(payloadId))
+            {
+                return NotFound();
+            }
+            var payloadToPartiallyUpdateEntity = _payloadInfoRepository.GetPayloadAsync(payloadId);
+
+            var payloadToPatch = _mapper.Map<PayloadForUpdateDTO>(payloadToPartiallyUpdateEntity);
+
+            patchPayload.ApplyTo(payloadToPatch, ModelState);
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+            if(!TryValidateModel(payloadToPatch))
+            {
+                return BadRequest(ModelState);
+            }
+
+            await _mapper.Map(payloadToPatch, payloadToPartiallyUpdateEntity);
+
+            await _payloadInfoRepository.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        [HttpDelete("{payloadId}")]
+        public async Task<ActionResult> DeletePayload(Guid payloadId)
+        {
+            if (!PayloadExists(payloadId))
+            {
+                return NotFound();
+            }
+            var payloadToDelete = _payloadInfoRepository.GetPayloadAsync(payloadId);
+            var payloadEntity = _mapper.Map<Payload>(payloadToDelete);
+
+            if (payloadToDelete == null)
+            {
+                return NotFound();
+            }
+
+            _payloadInfoRepository.DeletePayloadAsync(payloadEntity);
+
+            await _payloadInfoRepository.SaveChangesAsync();
+
+            _mailService.Send("Payload deleted", $"Payload {payloadEntity.Id} was deleted");
+
+            return NoContent();
+        }
 
 
-        //    payloadToUpdate.TS = updatedPayload.TS;
-        //    payloadToUpdate.Sender = updatedPayload.Sender;
-        //    payloadToUpdate.Message = updatedPayload.Message;
-        //    payloadToUpdate.SentFromIp = updatedPayload.SentFromIp;
-        //    payloadToUpdate.Priority = updatedPayload.Priority;
-
-        //    return NoContent();
-        //}
-
-        //[HttpPatch("{payloadId}")]
-        //public ActionResult<PayloadDTO> EditPayload(Guid payloadId, JsonPatchDocument<PayloadForUpdateDTO> patchPayload)
-        //{
-        //    if (!PayloadExists(payloadId))
-        //    {
-        //        return NotFound();
-        //    }
-        //    var payloadToEdit = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
-
-
-        //    var newPatchedPayload =
-        //        new PayloadForUpdateDTO()
-        //        {
-        //            TS = payloadToEdit.TS,
-        //            Sender = payloadToEdit.Sender,
-        //            Message = payloadToEdit.Message,
-        //            SentFromIp = payloadToEdit.SentFromIp,
-        //            Priority = payloadToEdit.Priority,
-        //        };
-        //    patchPayload.ApplyTo(newPatchedPayload, ModelState);
-
-        //    if(!ModelState.IsValid) 
-        //    { 
-        //        return BadRequest(ModelState);
-        //    }
-
-        //    payloadToEdit.TS = newPatchedPayload.TS;
-        //    payloadToEdit.Sender = payloadToEdit.Sender;
-        //    payloadToEdit.Message = payloadToEdit.Message;
-        //    payloadToEdit.SentFromIp = payloadToEdit.SentFromIp;
-        //    payloadToEdit.Priority = payloadToEdit.Priority;
-
-        //    return NoContent();
-        //}
-        //[HttpDelete("{payloadId}")]
-        //public ActionResult DeletePayload(Guid payloadId)
-        //{
-        //    if (!PayloadExists(payloadId))
-        //    {
-        //        return NotFound();
-        //    }
-        //    var payloadToDelete = _payloadDataStore.PayloadDTOs.FirstOrDefault(p => p.Id == payloadId);
-
-        //    _payloadDataStore.PayloadDTOs.Remove(payloadToDelete);
-        //    _mailService.Send("Payload deleted", $"Payload {payloadToDelete.Id} was deleted");
-        //    return NoContent();
-        //}
-
-
-#region VALIDATION
+    #region VALIDATION
         private bool PayloadExists(Guid payloadId)
         {
             var payloadToReturn = _payloadInfoRepository.GetPayloadAsync(payloadId);
@@ -241,117 +243,3 @@ namespace WebService.Controllers
 #endregion
     }
 }
-        //private readonly PayloadContext _context;
-
-        //public PayloadsController(PayloadContext context)
-        //{
-        //    _context = context;
-        //}
-
-        //// GET: api/Payloads
-        //[HttpGet]
-        //public async Task<ActionResult<IEnumerable<Payload>>> GetPayloads()
-        //{
-        //  if (_context.Payloads == null)
-        //  {
-        //      return NotFound();
-        //  }
-        //    return await _context.Payloads.ToListAsync();
-        //}
-
-        //// GET: api/Payloads/5
-        //[HttpGet("{id}")]
-        //public async Task<ActionResult<Payload>> GetPayload(Guid id)
-        //{
-        //  if (_context.Payloads == null)
-        //  {
-        //      return NotFound();
-        //  }
-        //    var payload = await _context.Payloads.FindAsync(id);
-
-        //    if (payload == null)
-        //    {
-        //        return NotFound();
-        //    }
-
-        //    return payload;
-        //}
-
-        //// PUT: api/Payloads/5
-        //// To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        //[HttpPut("{id}")]
-        //public async Task<IActionResult> PutPayload(Guid id, Payload payload)
-        //{
-        //    bool isValid = ValidatePayload(payload);
-        //    if (!isValid) 
-        //    {
-        //        return BadRequest();
-        //    }
-
-        //    if (id != payload.Id)
-        //    {
-        //        return BadRequest();
-        //    }
-
-        //    _context.Entry(payload).State = EntityState.Modified;
-
-        //    try
-        //    {
-        //        await _context.SaveChangesAsync();
-        //    }
-        //    catch (DbUpdateConcurrencyException)
-        //    {
-        //        if (!PayloadExists(id))
-        //        {
-        //            return NotFound();
-        //        }
-        //        else
-        //        {
-        //            throw;
-        //        }
-        //    }
-
-        //    return NoContent();
-        //}
-
-        //// POST: api/Payloads
-        //// To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        //[HttpPost]
-        //public async Task<ActionResult<Payload>> PostPayload(Payload payload)
-        //{
-        //    bool isValid = ValidatePayload(payload);
-        //    if (!isValid)
-        //    {
-        //        return BadRequest();
-        //    }
-
-        //    if (_context.Payloads == null)
-        //    {
-        //        return Problem("Entity set 'PayloadContext.Payloads'  is null.");
-        //    }
-
-        //    _context.Payloads.Add(payload);
-        //    await _context.SaveChangesAsync();
-
-        //    return CreatedAtAction(nameof(GetPayload), new { id = payload.Id }, payload);
-        //}
-
-        //// DELETE: api/Payloads/5
-        //[HttpDelete("{id}")]
-        //public async Task<IActionResult> DeletePayload(Guid id)
-        //{
-        //    if (_context.Payloads == null)
-        //    {
-        //        return NotFound();
-        //    }
-        //    var payload = await _context.Payloads.FindAsync(id);
-        //    if (payload == null)
-        //    {
-        //        return NotFound();
-        //    }
-
-        //    _context.Payloads.Remove(payload);
-        //    await _context.SaveChangesAsync();
-
-        //    return NoContent();
-        //}

@@ -12,6 +12,8 @@ namespace WebService.Services
 
         void AddPayloadAsync(Payload payload);
 
+        void DeletePayloadAsync(Payload payload);
+
         Task<bool> SaveChangesAsync();
     }
 }

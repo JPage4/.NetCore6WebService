@@ -8,6 +8,8 @@ namespace WebService.Profiles
         { 
             CreateMap<Entities.Payload, Models.PayloadDTO>();
             CreateMap<Models.PayloadForCreationDTO, Entities.Payload>();
+            CreateMap<Entities.Payload, Models.PayloadForUpdateDTO>();
+            CreateMap<Models.PayloadForUpdateDTO, Entities.Payload>();
         }
     }
 }
