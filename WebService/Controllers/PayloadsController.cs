@@ -102,6 +102,8 @@ namespace WebService.Controllers
 
             await _mapper.Map(updatedPayload, payloadToUpdateEntity);
 
+            await _payloadInfoRepository.SaveChangesAsync();
+
             return NoContent();
         }
 
@@ -142,6 +144,7 @@ namespace WebService.Controllers
                 return NotFound();
             }
             var payloadToDelete = _payloadInfoRepository.GetPayloadAsync(payloadId);
+
             var payloadEntity = _mapper.Map<Payload>(payloadToDelete);
 
             if (payloadToDelete == null)
